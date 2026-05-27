@@ -1,0 +1,6 @@
+-- Poud_garage uses the ESX owned_vehicles table.
+-- The default esx_vehicleshop schema already has the required columns:
+-- owner, plate, vehicle, type, job, stored.
+--
+-- If your existing table is missing stored, run:
+-- ALTER TABLE owned_vehicles ADD COLUMN stored TINYINT(1) NOT NULL DEFAULT 1;
