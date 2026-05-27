@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poud Garage</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main id="app" class="garage hidden">
+        <section class="window">
+            <header class="header">
+                <div>
+                    <p id="eyebrow" class="eyebrow">GARAZ</p>
+                    <h1 id="title">Garage</h1>
+                </div>
+                <button id="close" class="icon-button" type="button" aria-label="Zavrit">×</button>
+            </header>
+
+            <div id="empty" class="empty hidden"></div>
+            <div id="vehicles" class="vehicle-list"></div>
+        </section>
+    </main>
+
+    <aside id="prompt" class="prompt hidden">
+        <div id="promptKey" class="prompt-key">E</div>
+        <div>
+            <p id="promptTitle" class="prompt-title">Zaparkovat vozidlo</p>
+            <p id="promptDescription" class="prompt-description">Stiskni E pro predani auta obsluze.</p>
+        </div>
+    </aside>
+
+    <script>
+        const app = document.getElementById('app');
+        const title = document.getElementById('title');
+        const eyebrow = document.getElementById('eyebrow');
+        const closeButton = document.getElementById('close');
+        const vehiclesElement = document.getElementById('vehicles');
+        const emptyElement = document.getElementById('empty');
+
+        let currentGarageId = null;
+        let text = {};
+
+        function resourceName() {
+            return typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'Poud_garage';
+        }
+
+        function post(name, data) {
+            return fetch('https://' + resourceName() + '/' + name, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+                body: JSON.stringify(data || {})
+            });
+        }
+
+        function closeUi() {
+            app.style.display = 'none';
+            currentGarageId = null;
+            post('close');
+        }
+
+        function showUi() {
+            app.classList.remove('hidden');
+            app.style.display = 'grid';
+        }
+
+        function renderVehicles(vehicles) {
+            vehiclesElement.innerHTML = '';
+
+            if (!vehicles || vehicles.length < 1) {
+                emptyElement.textContent = text.noVehicles || 'Zadne vozidlo.';
+                emptyElement.classList.remove('hidden');
+                return;
+            }
+
+            emptyElement.classList.add('hidden');
+
+            vehicles.forEach(function(vehicle) {
+                const row = document.createElement('article');
+                row.className = 'vehicle' + (vehicle.stored ? '' : ' is-out');
+
+                const info = document.createElement('div');
+                const name = document.createElement('p');
+                const meta = document.createElement('div');
+                const plate = document.createElement('span');
+                const status = document.createElement('span');
+                const button = document.createElement('button');
+
+                name.className = 'vehicle-name';
+                name.textContent = vehicle.label || vehicle.model || 'Vozidlo';
+                meta.className = 'vehicle-meta';
+                plate.textContent = (text.plate || 'SPZ') + ': ' + (vehicle.plate || '-');
+                status.className = 'status';
+                status.textContent = vehicle.extraDescription || (vehicle.stored ? (text.stored || 'V garazi') : (text.out || 'Venku'));
+
+                button.className = 'take-out';
+                button.type = 'button';
+                const canTakeOut = vehicle.canTakeOut !== undefined ? vehicle.canTakeOut : vehicle.stored;
+                button.disabled = !canTakeOut;
+                button.textContent = vehicle.actionLabel || (canTakeOut ? (text.retrieveVehicle || 'Retrieve') : (text.out || 'Venku'));
+                button.onclick = function() {
+                    button.disabled = true;
+                    post('takeOut', {
+                        garageId: currentGarageId,
+                        plate: vehicle.plate
+                    });
+                };
+
+                meta.appendChild(plate);
+                meta.appendChild(status);
+                info.appendChild(name);
+                info.appendChild(meta);
+                row.appendChild(info);
+                row.appendChild(button);
+                vehiclesElement.appendChild(row);
+            });
+        }
+
+        function setGarageData(data) {
+            text = data.text || text || {};
+
+            if (data.garage) {
+                currentGarageId = data.garage.id;
+                title.textContent = data.garage.label || 'Garage';
+            }
+
+            eyebrow.textContent = text.garageTitle || 'GARAZ';
+
+            if (data.loading) {
+                vehiclesElement.innerHTML = '';
+                emptyElement.textContent = text.loadingVehicles || 'Nacitam vozidla...';
+                emptyElement.classList.remove('hidden');
+                showUi();
+                return;
+            }
+
+            renderVehicles(data.vehicles || []);
+            showUi();
+        }
+
+        window.addEventListener('message', function(event) {
+            const data = event.data || {};
+
+            if (data.action === 'close') {
+                app.style.display = 'none';
+                currentGarageId = null;
+                return;
+            }
+
+            if (data.action === 'open' || data.action === 'updateVehicles') {
+                setGarageData(data);
+            }
+        });
+
+        closeButton.onclick = closeUi;
+
+        document.addEventListener('keyup', function(event) {
+            if (event.key === 'Escape') closeUi();
+        });
+
+        app.style.display = 'none';
+        post('ready').catch(function() {});
+    </script>
+</body>
+</html>
